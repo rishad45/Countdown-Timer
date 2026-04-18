@@ -1,28 +1,20 @@
 import { register } from "@shopify/web-pixels-extension";
 
-register(({ analytics, init, settings }) => {
-
-  const shopDomain = init.data?.shop?.myshopifyDomain ?? null;
-
-  const send = (event) => {
-    const body = {
-      shop: shopDomain,
-      receivedAt: new Date().toISOString(),
-      event,
-    };
-    console.log("Sending event", body);
-    // fetch(`http://localhost:3000/api/public/analytics`, {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //     Accept: "application/json",
-    //   },
-    //   body: JSON.stringify(body),
-    //   keepalive: true,
-    // }).catch(() => {});
-  };
-
-  analytics.subscribe("all_events", (event) => {
-    send(event);
+register(({ analytics }) => {
+  analytics.subscribe("product_added_to_cart", (event) => {
+    const productId = event.data?.productVariant?.product?.id;
+    console.log("Product added to cart", event);
+    fetch("http://localhost:3000/api/analytics/add-to-cart", {
+      method: "POST",
+      body: JSON.stringify({
+        productId,
+        shop: event.data?.shop?.myshopifyDomain,
+        timestamp: event.timestamp,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      keepalive: true,
+    });
   });
 });
