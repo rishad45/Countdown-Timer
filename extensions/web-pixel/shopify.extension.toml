@@ -7,6 +7,12 @@ runtime_context = "strict"
 [settings]
 type = "object"
 
+[customer_privacy]
+analytics = true
+marketing = true
+preferences = false
+sale_of_data = "enabled"
+
 [settings.fields.accountID]
 name = "Account ID"
 description = "Account ID"

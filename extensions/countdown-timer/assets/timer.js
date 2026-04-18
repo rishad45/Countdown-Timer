@@ -83,9 +83,24 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+/**
+ * Parse ISO-like timestamps from the API. If the string has no timezone, treat as UTC (append Z).
+ * @param {string | null | undefined} value
+ * @returns {number}
+ */
+function parseUtcMs(value) {
+  if (value == null) return NaN;
+  let s = String(value).trim();
+  if (!s) return NaN;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !/[zZ]$/.test(s) && !/[+-]\d{2}:?\d{2}$/.test(s)) {
+    s = `${s}Z`;
+  }
+  return new Date(s).getTime();
+}
+
 function resolveCountdownTarget({ timer, shop }) {
   const now = Date.now();
-  const timerType = timer?.timerType || "FIXED_WINDOW";
+  const timerType = timer?.timerType === "EVERGREEN" ? "EVERGREEN" : "FIXED_WINDOW";
 
   if (timerType === "EVERGREEN") {
     const durationSeconds = Number(timer?.evergreenDurationSeconds);
@@ -108,15 +123,18 @@ function resolveCountdownTarget({ timer, shop }) {
     return new Date(endMs).toISOString();
   }
 
-  const start = new Date(timer.startAtUtc).getTime();
-  const end = new Date(timer.endAtUtc).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) {
+  // Fixed-window: GET /api/public/timer already ensures the timer is active on the server (UTC).
+  // Re-checking the window in the browser often fails due to date-string parsing (missing Z, etc.).
+  // We only need a valid end time to count down to.
+  const endMs = parseUtcMs(timer.endAtUtc);
+  if (Number.isNaN(endMs)) {
     return null;
   }
-  if (now < start || now > end) {
+  if (now > endMs) {
     return null;
   }
-  return timer.endAtUtc;
+  const endIso = timer.endAtUtc;
+  return typeof endIso === "string" && endIso.trim() ? endIso.trim() : new Date(endMs).toISOString();
 }
 
 function getOrCreateSessionStart(key, nowMs) {

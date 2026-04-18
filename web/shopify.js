@@ -30,7 +30,10 @@ const shopify = shopifyApp({
     scopes: [
       'read_locales',
       'read_products',
-      'write_products'
+      'write_products',
+      'write_pixels',
+      'read_pixels',
+      'read_customer_events',
     ],
   },
   auth: {

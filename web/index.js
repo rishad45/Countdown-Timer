@@ -26,10 +26,7 @@ import {
 } from "./db/timers.js";
 import { initializeShopsCollection, upsertShopFromSession } from "./db/shops.js";
 
-const PORT = parseInt(
-  process.env.BACKEND_PORT || process.env.PORT || "3000",
-  10
-);
+const PORT = "3000";
 
 const STATIC_PATH =
   process.env.NODE_ENV === "production"
@@ -81,6 +78,17 @@ app.options("/api/public/timer", corsPublicTimer, (_req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.status(204).end();
+});
+
+
+app.post("/api/public/analytics", (req, res) => {
+  try {
+    console.log("[pixel-analytics]", req);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("POST /api/public/analytics failed", error);
+    return res.status(500).json({ success: false, errors: ["Unable to log analytics."] });
+  }
 });
 
 app.get("/api/public/timer", corsPublicTimer, async (req, res) => {

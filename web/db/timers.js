@@ -94,6 +94,48 @@ function normalizeShopifyGidToId(raw) {
   return trimmed;
 }
 
+/**
+ * Values that may appear in stored `productIds` / query params so Mongo matches reliably.
+ * @param {string} numericProductId digits-only id
+ * @returns {string[]}
+ */
+function productIdQueryVariants(numericProductId) {
+  const id = typeof numericProductId === "string" ? numericProductId.trim() : "";
+  if (!id) return [];
+  const gid = `gid://shopify/Product/${id}`;
+  return [...new Set([id, gid])];
+}
+
+/**
+ * Same idea for `collectionIds` arrays (numeric id + Collection GID).
+ * @param {string} numericCollectionId
+ * @returns {string[]}
+ */
+function collectionIdQueryVariants(numericCollectionId) {
+  const id = typeof numericCollectionId === "string" ? numericCollectionId.trim() : "";
+  if (!id) return [];
+  const gid = `gid://shopify/Collection/${id}`;
+  return [...new Set([id, gid])];
+}
+
+/**
+ * Match how `shop` is stored on timer docs (session shop domain), tolerating casing
+ * or accidental `https://` in query strings.
+ * @param {string} raw
+ * @returns {string}
+ */
+export function normalizeShopDomain(raw) {
+  let s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return "";
+  s = s.toLowerCase();
+  s = s.replace(/^https?:\/\//, "");
+  const slash = s.indexOf("/");
+  if (slash !== -1) s = s.slice(0, slash);
+  const colon = s.indexOf(":");
+  if (colon !== -1) s = s.slice(0, colon);
+  return s;
+}
+
 function sanitizeIdArray(value) {
   if (!Array.isArray(value)) return [];
 
@@ -393,7 +435,7 @@ export function toPublicTimer(timer) {
 
 /**
  * Active timer for a product: selected product > selected collection (if collectionIds provided) > all products.
- * Only returns timers where status is ACTIVE and now is within [startAtUtc, endAtUtc].
+ * Fixed-window timers must be within [startAtUtc, endAtUtc]; evergreen only needs ACTIVE + positive duration.
  *
  * @param {string} shop
  * @param {string} productIdRaw numeric id or Shopify Product GID
@@ -404,11 +446,13 @@ export async function findActiveTimerForProduct(
   productIdRaw,
   collectionIdsFromTheme = []
 ) {
-  const shopDomain = typeof shop === "string" ? shop.trim() : "";
+  const shopDomain = normalizeShopDomain(shop);
   const productId = normalizeShopifyGidToId(String(productIdRaw ?? ""));
   if (!shopDomain || !productId) {
     return null;
   }
+
+  const productIdVariants = productIdQueryVariants(productId);
 
   const now = new Date();
   const collection = await getTimersCollection();
@@ -428,6 +472,10 @@ export async function findActiveTimerForProduct(
       },
       {
         timerType: { $exists: false },
+        evergreenDurationSeconds: { $gt: 0 },
+      },
+      {
+        timerType: { $exists: false },
         startAtUtc: { $lte: now },
         endAtUtc: { $gte: now },
       },
@@ -438,7 +486,7 @@ export async function findActiveTimerForProduct(
     {
       ...activeFilter,
       scopeType: "SELECTED_PRODUCTS",
-      productIds: productId,
+      productIds: { $in: productIdVariants },
     },
     { sort: { updatedAt: -1 } }
   );
@@ -452,12 +500,12 @@ export async function findActiveTimerForProduct(
       .filter(Boolean)
   );
   if (collectionIdSet.size > 0) {
-    const inList = [...collectionIdSet];
+    const inList = [...collectionIdSet].flatMap((cid) => collectionIdQueryVariants(cid));
     const collectionScopeDocs = await collection
       .find({
         ...activeFilter,
         scopeType: "SELECTED_COLLECTIONS",
-        collectionIds: { $in: inList },
+        collectionIds: { $in: [...new Set(inList)] },
       })
       .sort({ updatedAt: -1 })
       .limit(1)
@@ -469,7 +517,6 @@ export async function findActiveTimerForProduct(
 
   const allProductsMatch = await collection.findOne(
     {
-      ...activeFilter,
       scopeType: "ALL_PRODUCTS",
     },
     { sort: { updatedAt: -1 } }
