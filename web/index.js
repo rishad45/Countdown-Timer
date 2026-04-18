@@ -25,6 +25,12 @@ import {
   toPublicTimer,
 } from "./db/timers.js";
 import { initializeShopsCollection, upsertShopFromSession } from "./db/shops.js";
+import {
+  initializeAnalyticsCollection,
+  sanitizeAnalyticsPayload,
+  validateAnalyticsPayload,
+  insertAnalyticsEvent,
+} from "./db/analytics.js";
 
 const PORT = "3000";
 
@@ -37,6 +43,7 @@ const app = express();
 
 await initializeTimersCollection();
 await initializeShopsCollection();
+await initializeAnalyticsCollection();
 
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
@@ -80,14 +87,48 @@ app.options("/api/public/timer", corsPublicTimer, (_req, res) => {
   res.status(204).end();
 });
 
+function corsPublicAnalytics(_req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+}
 
-app.post("/api/public/analytics", (req, res) => {
+app.options("/api/public/analytics", corsPublicAnalytics, (_req, res) => {
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.status(204).end();
+});
+
+app.post("/api/public/analytics", corsPublicAnalytics, async (req, res) => {
   try {
-    console.log("[pixel-analytics]", req);
-    return res.status(200).json({ success: true });
+    console.log("Analytics", req.body);
+    const sanitized = sanitizeAnalyticsPayload({
+      ...(typeof req.query === "object" && req.query ? req.query : {}),
+      ...(req.body && typeof req.body === "object" ? req.body : {}),
+    });
+    const validation = validateAnalyticsPayload(sanitized);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        errors: validation.errors,
+      });
+    }
+
+    const insertedId = await insertAnalyticsEvent(sanitized);
+    return res.status(201).json({
+      success: true,
+      id: insertedId.toString(),
+    });
   } catch (error) {
+    if (error instanceof MongoServerError && error.code === 121) {
+      console.error("POST /api/public/analytics: validation failed", jsonSafe(error.errInfo ?? null));
+      return res.status(400).json({
+        success: false,
+        errors: ["Analytics data did not pass database validation."],
+        validationDetails: jsonSafe(error.errInfo?.details ?? null),
+      });
+    }
     console.error("POST /api/public/analytics failed", error);
-    return res.status(500).json({ success: false, errors: ["Unable to log analytics."] });
+    return res.status(500).json({ success: false, errors: ["Unable to save analytics."] });
   }
 });
 
