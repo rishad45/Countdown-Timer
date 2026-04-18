@@ -4,8 +4,53 @@ import {
   findTimerByIdForShop,
   deleteTimersByIdsForShop,
 } from "../db/timers.js";
+import { getAnalyticsSummary } from "../db/analytics.js";
+import { enrichTimerWithResourceTitles } from "../lib/enrichTimerTitles.js";
 
 const router = Router();
+
+router.get("/analytics/summary", async (req, res) => {
+  try {
+    const shop = res.locals.shopify?.session?.shop;
+    if (!shop || typeof shop !== "string") {
+      return res.status(500).json({
+        success: false,
+        errors: ["Shop session is missing. Cannot load analytics."],
+      });
+    }
+
+    const productId =
+      typeof req.query.productId === "string" && req.query.productId.trim()
+        ? req.query.productId.trim()
+        : undefined;
+    const timerId =
+      typeof req.query.timerId === "string" && req.query.timerId.trim()
+        ? req.query.timerId.trim()
+        : undefined;
+
+    const summary = await getAnalyticsSummary(shop, { productId, timerId });
+
+    if (!summary) {
+      return res.status(400).json({
+        success: false,
+        errors: ["Unable to build analytics for this shop."],
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      impressions: summary.impressions,
+      addToCart: summary.addToCart,
+      conversionRate: summary.conversionRate,
+    });
+  } catch (error) {
+    console.error("GET /api/analytics/summary failed", error);
+    return res.status(500).json({
+      success: false,
+      errors: ["Unable to load analytics summary."],
+    });
+  }
+});
 
 router.get("/timers", async (req, res) => {
   try {
@@ -46,7 +91,10 @@ router.get("/timers/:id", async (req, res) => {
       });
     }
 
-    return res.status(200).json({ success: true, timer });
+    const session = res.locals.shopify?.session;
+    const timerWithTitles = await enrichTimerWithResourceTitles(timer, session);
+
+    return res.status(200).json({ success: true, timer: timerWithTitles });
   } catch (error) {
     console.error("GET /api/timers/:id failed", error);
     return res.status(500).json({
@@ -97,14 +145,6 @@ router.delete("/timers", async (req, res) => {
       errors: ["Unable to delete timers."],
     });
   }
-});
-
-router.get("/received", (req, res) => {
-  res.status(200).send({
-    success: true,
-    message: "received",
-    query: req.query,
-  });
 });
 
 export default router;

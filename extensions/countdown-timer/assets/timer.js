@@ -76,6 +76,29 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         startCountdown(valueEl, countdownTarget);
+
+        const analyticsUrl = new URL("/api/public/analytics", apiBase);
+        analyticsUrl.searchParams.set("shop", shop);
+        analyticsUrl.searchParams.set(
+          "host",
+          typeof window !== "undefined" ? window.location.host || "" : ""
+        );
+
+        fetch(analyticsUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "omit",
+          body: JSON.stringify({
+            shop,
+            productId,
+            eventType: "IMPRESSION",
+            source: "theme",
+            timestamp: new Date().toISOString(),
+            timerId: timer.id,
+          }),
+        }).catch(() => {});
     })
     .catch((err) => {
       console.error("Timer fetch failed", err);
