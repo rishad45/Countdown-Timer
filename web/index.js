@@ -21,7 +21,10 @@ import {
   validateTimerPayload,
   getTimersCollection,
   buildTimerDocument,
+  findActiveTimerForProduct,
+  toPublicTimer,
 } from "./db/timers.js";
+import { initializeShopsCollection, upsertShopFromSession } from "./db/shops.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -36,12 +39,24 @@ const STATIC_PATH =
 const app = express();
 
 await initializeTimersCollection();
+await initializeShopsCollection();
 
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
+  async (_req, res, next) => {
+    try {
+      const session = res.locals.shopify?.session;
+      if (session) {
+        await upsertShopFromSession(session);
+      }
+    } catch (error) {
+      console.error("OAuth callback: failed to persist shop record", error);
+    }
+    next();
+  },
   shopify.redirectToShopifyOrAppRoot()
 );
 app.post(
@@ -52,7 +67,82 @@ app.post(
 // If you are adding routes outside of the /api path, remember to
 // also add a proxy rule for them in web/frontend/vite.config.js
 app.use("/api", express.json({ limit: "1mb" }));
+
+/**
+ * Storefront: no session auth. Requires `shop` (myshopify.com domain) to scope data.
+ * Query: productId (numeric or Product GID), optional collectionIds=comma-separated ids for collection-scoped timers.
+ */
+function corsPublicTimer(_req, res, next) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+}
+
+app.options("/api/public/timer", corsPublicTimer, (_req, res) => {
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.status(204).end();
+});
+
+app.get("/api/public/timer", corsPublicTimer, async (req, res) => {
+  try {
+    const shop =
+      typeof req.query.shop === "string" ? req.query.shop.trim() : "";
+    const productId = req.query.productId;
+    const collectionIdsRaw = req.query.collectionIds;
+
+    if (!shop) {
+      return res.status(400).json({
+        success: false,
+        errors: ["Missing shop query parameter (e.g. shop=your-store.myshopify.com)."],
+      });
+    }
+
+    if (productId === undefined || productId === null || String(productId).trim() === "") {
+      return res.status(400).json({
+        success: false,
+        errors: ["Missing productId query parameter."],
+      });
+    }
+
+    let collectionIds = [];
+    if (typeof collectionIdsRaw === "string" && collectionIdsRaw.trim() !== "") {
+      collectionIds = collectionIdsRaw
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+    }
+
+    const timer = await findActiveTimerForProduct(shop, String(productId), collectionIds);
+
+    if (!timer) {
+      return res.status(200).json({ success: true, timer: null });
+    }
+
+    return res.status(200).json({
+      success: true,
+      timer: toPublicTimer(timer),
+    });
+  } catch (error) {
+    console.error("GET /api/public/timer failed", error);
+    return res.status(500).json({
+      success: false,
+      errors: ["Unable to load timer."],
+    });
+  }
+});
+
 app.use("/api/*", shopify.validateAuthenticatedSession());
+app.use("/api/*", async (_req, res, next) => {
+  try {
+    const session = res.locals.shopify?.session;
+    if (session) {
+      await upsertShopFromSession(session);
+    }
+  } catch (error) {
+    console.error("Persist shop from session failed", error);
+  }
+  next();
+});
 
 // const skipApiSessionValidation = (req) => {
 //   if (req.path.startsWith("/auth")) return true;
@@ -117,7 +207,11 @@ app.post("/api/timers", async (req, res) => {
       });
     }
 
-    if (error instanceof Error && error.message.includes("Invalid start or end date")) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("Invalid start or end date") ||
+        error.message.includes("Invalid evergreen duration"))
+    ) {
       return res.status(400).send({
         success: false,
         errors: [error.message],
@@ -157,4 +251,8 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-app.listen(PORT);
+app.listen(PORT, () => {
+  console.log('*********************');
+  console.log(`listening on ${PORT}`);
+  console.log('*********************');
+});

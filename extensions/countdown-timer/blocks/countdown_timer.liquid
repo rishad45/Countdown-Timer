@@ -1,10 +1,163 @@
-
-<div class="countdown_timer"></div>
+{% if template == 'product' %}
+<div
+  class="countdown_timer"
+  data-shop="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-api-base="http://localhost:53461"
+  data-api-base="{{ block.settings.app_backend_url | strip }}"
+  style="
+    --ct-bg-color: {{ block.settings.bg_color }};
+    --ct-border-color: {{ block.settings.border_color }};
+    --ct-border-width: {{ block.settings.border_width }}px;
+    --ct-border-radius: {{ block.settings.border_radius }}px;
+    --ct-padding-y: {{ block.settings.padding_y }}px;
+    --ct-padding-x: {{ block.settings.padding_x }}px;
+    --ct-margin-top: {{ block.settings.margin_top }}px;
+    --ct-label-color: {{ block.settings.label_color }};
+    --ct-value-color: {{ block.settings.value_color }};
+    --ct-font-size: {{ block.settings.font_size }}px;
+    --ct-font-weight: {{ block.settings.font_weight }};
+    --ct-text-align: {{ block.settings.text_align }};
+    --ct-gap: {{ block.settings.gap }}px;
+  "
+>
+  <span class="timer-label" aria-hidden="true"></span>
+  <span class="timer-value" role="timer"></span>
+</div>
+<script src="{{ 'timer.js' | asset_url }}" defer></script>
+<link rel="stylesheet" href="{{ 'timer.css' | asset_url }}">
+{% endif %}
 
 {% schema %}
 {
   "name": "Countdown Timer",
   "target": "section",
-  "settings": []
+  "settings": [
+    {
+      "type": "header",
+      "content": "Container style"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background color",
+      "default": "#fff3cd"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border color",
+      "default": "#ffeeba"
+    },
+    {
+      "type": "range",
+      "id": "border_width",
+      "label": "Border width",
+      "min": 0,
+      "max": 8,
+      "step": 1,
+      "unit": "px",
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "border_radius",
+      "label": "Border radius",
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "unit": "px",
+      "default": 6
+    },
+    {
+      "type": "range",
+      "id": "padding_x",
+      "label": "Horizontal padding",
+      "min": 0,
+      "max": 48,
+      "step": 1,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "padding_y",
+      "label": "Vertical padding",
+      "min": 0,
+      "max": 48,
+      "step": 1,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "range",
+      "id": "margin_top",
+      "label": "Top margin",
+      "min": 0,
+      "max": 60,
+      "step": 1,
+      "unit": "px",
+      "default": 10
+    },
+    {
+      "type": "header",
+      "content": "Text style"
+    },
+    {
+      "type": "color",
+      "id": "label_color",
+      "label": "Label color",
+      "default": "#222222"
+    },
+    {
+      "type": "color",
+      "id": "value_color",
+      "label": "Countdown value color",
+      "default": "#d9534f"
+    },
+    {
+      "type": "range",
+      "id": "font_size",
+      "label": "Font size",
+      "min": 10,
+      "max": 40,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "select",
+      "id": "font_weight",
+      "label": "Font weight",
+      "default": "500",
+      "options": [
+        { "value": "400", "label": "Normal (400)" },
+        { "value": "500", "label": "Medium (500)" },
+        { "value": "600", "label": "Semi-bold (600)" },
+        { "value": "700", "label": "Bold (700)" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "text_align",
+      "label": "Text alignment",
+      "default": "left",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "gap",
+      "label": "Label/value gap",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "default": 6
+    }
+  ]
 }
 {% endschema %}

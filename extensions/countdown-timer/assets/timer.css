@@ -1,0 +1,26 @@
+.countdown_timer {
+    display: none;
+    padding: var(--ct-padding-y, 10px) var(--ct-padding-x, 10px);
+    background: var(--ct-bg-color, #fff3cd);
+    border: var(--ct-border-width, 1px) solid var(--ct-border-color, #ffeeba);
+    border-radius: var(--ct-border-radius, 6px);
+    font-size: var(--ct-font-size, 16px);
+    font-weight: var(--ct-font-weight, 500);
+    margin-top: var(--ct-margin-top, 10px);
+    text-align: var(--ct-text-align, left);
+}
+
+.countdown_timer .timer-label,
+.countdown_timer .timer-value {
+    vertical-align: middle;
+}
+
+.countdown_timer .timer-label {
+    color: var(--ct-label-color, #222222);
+    margin-right: var(--ct-gap, 6px);
+}
+
+.timer-value {
+    font-weight: inherit;
+    color: var(--ct-value-color, #d9534f);
+}
