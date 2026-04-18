@@ -2,29 +2,37 @@ import {
   Card,
   Page,
   Layout,
-  DataTable,
+  Text,
+  Button,
+  BlockStack,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { useNavigate } from "react-router-dom";
+
+import homeHero from "../assets/home-hero.png";
 
 export default function HomePage() {
-  const rows = [
-    ["Starter Plan", "8", "2", "Apr 17, 2026"],
-    ["Holiday Bundle", "15", "6", "Apr 16, 2026"],
-    ["Pro Toolkit", "27", "11", "Apr 15, 2026"],
-    ["Sample Product", "12", "4", "Apr 14, 2026"],
-  ];
+  const navigate = useNavigate();
 
   return (
-    <Page narrowWidth>
-      <TitleBar title="Products Overview" />
+    <Page fullWidth>
+      <TitleBar title="Countdown Timer" />
       <Layout>
         <Layout.Section>
           <Card>
-            <DataTable
-              columnContentTypes={["text", "numeric", "numeric", "text"]}
-              headings={["Product", "Inventory", "Sales", "Updated"]}
-              rows={rows}
-            />
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Welcome to Countdown Timer
+              </Text>
+              <Text as="p" tone="subdued">
+                Create and manage your storefront timers from one place.
+              </Text>
+              <div>
+                <Button variant="primary" onClick={() => navigate("/timer")}>
+                  Go to timers
+                </Button>
+              </div>
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>

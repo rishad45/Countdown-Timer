@@ -23,10 +23,14 @@ export default function NewTimerPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [savedForm, setSavedForm] = useState({
     label: "",
+    timerType: "FIXED_WINDOW",
     startDate: "",
     startTime: "",
     endDate: "",
     endTime: "",
+    evergreenDays: "0",
+    evergreenHours: "1",
+    evergreenMinutes: "0",
     applyTo: "ALL_PRODUCTS",
     selectedProducts: [],
     selectedCollections: [],
@@ -113,6 +117,13 @@ export default function NewTimerPage() {
     }));
   };
 
+  const handleTimerTypeChange = (value) => {
+    setForm((currentForm) => ({
+      ...currentForm,
+      timerType: value,
+    }));
+  };
+
   const openProductPicker = async () => {
     const selection = await app.resourcePicker({
       type: "product",
@@ -176,47 +187,96 @@ export default function NewTimerPage() {
                   }
                   autoComplete="off"
                 />
+                <Select
+                  label="Timer Type"
+                  options={[
+                    { label: "Fixed window", value: "FIXED_WINDOW" },
+                    { label: "Evergreen (per session)", value: "EVERGREEN" },
+                  ]}
+                  value={form.timerType}
+                  onChange={handleTimerTypeChange}
+                />
               </FormLayout>
             </Card>
 
             <Card>
               <FormLayout>
-                <TextField
-                  label="Start Date"
-                  type="date"
-                  value={form.startDate}
-                  onChange={(value) =>
-                    setForm((currentForm) => ({ ...currentForm, startDate: value }))
-                  }
-                  autoComplete="off"
-                />
-                <TextField
-                  label="Start Time"
-                  type="time"
-                  value={form.startTime}
-                  onChange={(value) =>
-                    setForm((currentForm) => ({ ...currentForm, startTime: value }))
-                  }
-                  autoComplete="off"
-                />
-                <TextField
-                  label="End Date"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(value) =>
-                    setForm((currentForm) => ({ ...currentForm, endDate: value }))
-                  }
-                  autoComplete="off"
-                />
-                <TextField
-                  label="End Time"
-                  type="time"
-                  value={form.endTime}
-                  onChange={(value) =>
-                    setForm((currentForm) => ({ ...currentForm, endTime: value }))
-                  }
-                  autoComplete="off"
-                />
+                {form.timerType === "FIXED_WINDOW" ? (
+                  <>
+                    <TextField
+                      label="Start Date"
+                      type="date"
+                      value={form.startDate}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, startDate: value }))
+                      }
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Start Time"
+                      type="time"
+                      value={form.startTime}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, startTime: value }))
+                      }
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="End Date"
+                      type="date"
+                      value={form.endDate}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, endDate: value }))
+                      }
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="End Time"
+                      type="time"
+                      value={form.endTime}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, endTime: value }))
+                      }
+                      autoComplete="off"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Countdown starts on the visitor's first view in each browser session.
+                    </Text>
+                    <TextField
+                      label="Duration days"
+                      type="number"
+                      min={0}
+                      value={form.evergreenDays}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, evergreenDays: value }))
+                      }
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Duration hours"
+                      type="number"
+                      min={0}
+                      value={form.evergreenHours}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, evergreenHours: value }))
+                      }
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Duration minutes"
+                      type="number"
+                      min={0}
+                      value={form.evergreenMinutes}
+                      onChange={(value) =>
+                        setForm((currentForm) => ({ ...currentForm, evergreenMinutes: value }))
+                      }
+                      autoComplete="off"
+                    />
+                  </>
+                )}
               </FormLayout>
             </Card>
           </InlineGrid>

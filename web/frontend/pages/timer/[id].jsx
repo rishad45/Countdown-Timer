@@ -33,6 +33,24 @@ function formatScope(scopeType) {
   return map[scopeType] || scopeType;
 }
 
+function formatTimerType(timerType) {
+  if (timerType === "EVERGREEN") return "Evergreen";
+  return "Fixed window";
+}
+
+function formatEvergreenDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
+  const totalMinutes = Math.floor(seconds / 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+  return parts.join(" ");
+}
+
 export default function TimerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -109,12 +127,30 @@ export default function TimerDetailPage() {
                 </div>
                 <div>
                   <Text as="p" variant="bodySm" tone="subdued">
+                    Type
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    {formatTimerType(timer.timerType)}
+                  </Text>
+                </div>
+                <div>
+                  <Text as="p" variant="bodySm" tone="subdued">
                     Applies to
                   </Text>
                   <Text as="p" variant="bodyMd">
                     {formatScope(timer.scopeType)} — {targetSummary}
                   </Text>
                 </div>
+                {timer.timerType === "EVERGREEN" ? (
+                  <div>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Duration
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      {formatEvergreenDuration(timer.evergreenDurationSeconds)}
+                    </Text>
+                  </div>
+                ) : null}
                 <div>
                   <Text as="p" variant="bodySm" tone="subdued">
                     Start (UTC)

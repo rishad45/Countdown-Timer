@@ -1,17 +1,19 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Page,
   Layout,
   Card,
-  DataTable,
+  IndexTable,
+  useIndexResourceState,
   EmptyState,
   Spinner,
   Text,
-  Button,
+  Button
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "react-query";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "react-query";
+import { DeleteIcon } from "@shopify/polaris-icons";
 import { useAuthenticatedFetch } from "../../hooks/useAuthenticatedFetch";
 
 function formatUtcDate(iso) {
@@ -24,19 +26,30 @@ function formatUtcTime(iso) {
   return new Date(iso).toISOString().slice(11, 16);
 }
 
-function formatScope(scopeType) {
-  const map = {
-    ALL_PRODUCTS: "All products",
-    SELECTED_PRODUCTS: "Selected products",
-    SELECTED_COLLECTIONS: "Selected collections",
-  };
-  return map[scopeType] || scopeType;
+function formatTimerType(timerType) {
+  if (timerType === "EVERGREEN") return "Evergreen";
+  return "Fixed window";
+}
+
+function formatEvergreenDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "—";
+  const totalMinutes = Math.floor(seconds / 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
+  return parts.join(" ");
 }
 
 export default function TimerListPage() {
   const navigate = useNavigate();
   const app = useAppBridge();
   const fetch = useAuthenticatedFetch();
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
 
   const { data: timers = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["timers"],
@@ -54,25 +67,54 @@ export default function TimerListPage() {
     },
   });
 
-  const rows = useMemo(
+  const items = useMemo(
     () =>
-      timers.map((timer) => [
-        <Button
-          key={timer.id}
-          variant="plain"
-          onClick={() => navigate(`/timer/${timer.id}`)}
-        >
-          {timer.label}
-        </Button>,
-        formatScope(timer.scopeType),
-        formatUtcDate(timer.startAtUtc),
-        formatUtcTime(timer.startAtUtc),
-        formatUtcDate(timer.endAtUtc),
-        formatUtcTime(timer.endAtUtc),
-        timer.status,
-      ]),
-    [navigate, timers]
+      timers.map((timer) => ({
+        id: timer.id,
+        label: timer.label,
+        type: formatTimerType(timer.timerType),
+        startDate: formatUtcDate(timer.startAtUtc),
+        startTime: formatUtcTime(timer.startAtUtc),
+        endDate: formatUtcDate(timer.endAtUtc),
+        endTime: formatUtcTime(timer.endAtUtc),
+        evergreenDuration: formatEvergreenDuration(timer.evergreenDurationSeconds),
+        status: timer.status,
+      })),
+    [timers]
   );
+
+  const resourceName = {
+    singular: "timer",
+    plural: "timers",
+  };
+
+  const { selectedResources, allResourcesSelected, handleSelectionChange } =
+    useIndexResourceState(items);
+
+  const handleBulkDelete = async () => {
+    if (selectedResources.length === 0 || deleting) return;
+
+    try {
+      setDeleting(true);
+      const response = await fetch("/api/timers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedResources }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body?.errors?.join(" ") || "Failed to delete timers.");
+      }
+
+      const deletedCount = Number(body?.deletedCount) || 0;
+      app.toast.show(deletedCount > 0 ? `${deletedCount} timer(s) deleted.` : "No timers deleted.");
+      await queryClient.invalidateQueries(["timers"]);
+    } catch (err) {
+      app.toast.show(err.message || "Failed to delete timers.", { isError: true });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <Page
@@ -110,27 +152,61 @@ export default function TimerListPage() {
                 <p>Create a countdown timer to show on your storefront.</p>
               </EmptyState>
             ) : (
-              <DataTable
-                columnContentTypes={[
-                  "text",
-                  "text",
-                  "text",
-                  "text",
-                  "text",
-                  "text",
-                  "text",
+              <IndexTable
+                resourceName={resourceName}
+                itemCount={items.length}
+                selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
+                onSelectionChange={handleSelectionChange}
+                promotedBulkActions={[
+                  {
+                    content: "Delete",
+                    icon: DeleteIcon,
+                    destructive: true,
+                    onAction: handleBulkDelete,
+                    loading: deleting,
+                  },
                 ]}
+                loading={deleting}
                 headings={[
-                  "Label",
-                  "Scope",
-                  "Start date (UTC)",
-                  "Start time (UTC)",
-                  "End date (UTC)",
-                  "End time (UTC)",
-                  "Status",
+                  { title: "Label" },
+                  { title: "Type" },
+                  { title: "Start date (UTC)" },
+                  { title: "Start time (UTC)" },
+                  { title: "End date (UTC)" },
+                  { title: "End time (UTC)" },
+                  { title: "Evergreen duration" },
+                  { title: "Status" },
                 ]}
-                rows={rows}
-              />
+              >
+                {items.map((item, index) => (
+                  <IndexTable.Row
+                    id={item.id}
+                    key={item.id}
+                    position={index}
+                    selected={selectedResources.includes(item.id)}
+                  >
+                    <IndexTable.Cell>
+                      <RouterLink
+                        to={`/timer/${item.id}`}
+                        style={{
+                          color: "var(--p-color-text)",
+                          textDecoration: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {item.label}
+                      </RouterLink>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>{item.type}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.startDate}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.startTime}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.endDate}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.endTime}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.evergreenDuration}</IndexTable.Cell>
+                    <IndexTable.Cell>{item.status}</IndexTable.Cell>
+                  </IndexTable.Row>
+                ))}
+              </IndexTable>
             )}
           </Card>
         </Layout.Section>
