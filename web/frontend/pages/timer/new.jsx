@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Page,
   Layout,
@@ -11,9 +12,15 @@ import {
   Button,
 } from "@shopify/polaris";
 import { SaveBar, TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { useQueryClient } from "react-query";
+import { useAuthenticatedFetch } from "../../hooks/useAuthenticatedFetch";
 
 export default function NewTimerPage() {
   const app = useAppBridge();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const fetch = useAuthenticatedFetch();
+  const [isSaving, setIsSaving] = useState(false);
   const [savedForm, setSavedForm] = useState({
     label: "",
     startDate: "",
@@ -39,9 +46,56 @@ export default function NewTimerPage() {
     app.saveBar.hide("timer-save-bar");
   }, [app, isDirty]);
 
-  const handleSave = () => {
-    setSavedForm(form);
-    app.toast.show("Timer draft saved.");
+  useEffect(() => {
+    return () => {
+      app.saveBar.hide("timer-save-bar");
+    };
+  }, [app]);
+
+  const handleSave = async () => {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    app.loading(true);
+
+    try {
+      const response = await fetch("/api/timers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        if (payload?.reauthenticate) {
+          app.toast.show("Session expired. Please re-authenticate manually.", {
+            isError: true,
+          });
+          return;
+        }
+
+        const errorText =
+          payload?.errors?.join(" ") || "Unable to save timer. Please try again.";
+        app.toast.show(errorText, { isError: true });
+        return;
+      }
+
+      setSavedForm(form);
+      app.toast.show("Timer created successfully.");
+      app.saveBar.hide("timer-save-bar");
+      await queryClient.invalidateQueries(["timers"]);
+      const newId = payload.timerId;
+      if (newId) {
+        navigate(`/timer/${newId}`);
+        return;
+      }
+      navigate("/timer");
+    } catch (_error) {
+      app.toast.show("Unable to save timer. Please try again.", { isError: true });
+    } finally {
+      app.loading(false);
+      setIsSaving(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -102,10 +156,12 @@ export default function NewTimerPage() {
     <Page>
       <TitleBar title="Create Timer" />
       <SaveBar id="timer-save-bar">
-        <button variant="primary" onClick={handleSave}>
+        <button variant="primary" onClick={handleSave} disabled={isSaving}>
           Save
         </button>
-        <button onClick={handleDiscard}>Discard</button>
+        <button onClick={handleDiscard} disabled={isSaving}>
+          Discard
+        </button>
       </SaveBar>
       <Layout>
         <Layout.Section variant="oneHalf">
