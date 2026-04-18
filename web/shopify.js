@@ -1,9 +1,7 @@
-import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { BillingInterval } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
-import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
-
-const DB_PATH = `${process.cwd()}/database.sqlite`;
+import { RedisSessionStorage } from "@shopify/shopify-app-session-storage-redis";
+import { restResources } from "@shopify/shopify-api/rest/admin/2025-07";
 
 // The transactions with Shopify will always be marked as test transactions, unless NODE_ENV is production.
 // See the ensureBilling helper to learn more about billing in this template.
@@ -16,9 +14,12 @@ const billingConfig = {
   },
 };
 
+const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+const REDIS_SESSION_KEY_PREFIX = process.env.REDIS_SESSION_KEY_PREFIX;
+
 const shopify = shopifyApp({
   api: {
-    apiVersion: LATEST_API_VERSION,
+    apiVersion: "2026-04",
     restResources,
     future: {
       customerAddressDefaultFix: true,
@@ -26,6 +27,11 @@ const shopify = shopifyApp({
       unstable_managedPricingSupport: true,
     },
     billing: undefined, // or replace with billingConfig above to enable example billing
+    scopes: [
+      'read_locales',
+      'read_products',
+      'write_products'
+    ],
   },
   auth: {
     path: "/api/auth",
@@ -34,8 +40,9 @@ const shopify = shopifyApp({
   webhooks: {
     path: "/api/webhooks",
   },
-  // This should be replaced with your preferred storage strategy
-  sessionStorage: new SQLiteSessionStorage(DB_PATH),
+  sessionStorage: new RedisSessionStorage(REDIS_URL, {
+    sessionKeyPrefix: REDIS_SESSION_KEY_PREFIX || undefined,
+  }),
 });
 
 export default shopify;
