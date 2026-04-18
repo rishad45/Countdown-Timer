@@ -17,6 +17,7 @@ export default function App() {
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/timer">Timers</a>
+            <a href="/analytics">Analytics</a>
           </NavMenu>
           <Routes pages={pages} />
         </QueryProvider>

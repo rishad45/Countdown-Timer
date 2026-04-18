@@ -10,6 +10,8 @@ import {
   Text,
   Spinner,
   Button,
+  List,
+  BlockStack,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useAuthenticatedFetch } from "../../hooks/useAuthenticatedFetch";
@@ -76,18 +78,34 @@ export default function TimerDetailPage() {
     },
   });
 
-  const targetSummary = useMemo(() => {
-    if (!timer) return "—";
-    if (timer.scopeType === "ALL_PRODUCTS") return "All products";
-    if (timer.scopeType === "SELECTED_PRODUCTS") {
-      const n = timer.productIds?.length ?? 0;
-      return `${n} product(s)`;
+  const productRows = useMemo(() => {
+    if (!timer || timer.scopeType !== "SELECTED_PRODUCTS") return [];
+    const resolved = timer.resolvedProducts;
+    if (Array.isArray(resolved) && resolved.length > 0) {
+      return resolved.map((p) => ({
+        id: String(p.id),
+        label: typeof p.title === "string" && p.title.trim() ? p.title.trim() : null,
+      }));
     }
-    if (timer.scopeType === "SELECTED_COLLECTIONS") {
-      const n = timer.collectionIds?.length ?? 0;
-      return `${n} collection(s)`;
+    return (timer.productIds || []).map((id) => ({
+      id: String(id),
+      label: null,
+    }));
+  }, [timer]);
+
+  const collectionRows = useMemo(() => {
+    if (!timer || timer.scopeType !== "SELECTED_COLLECTIONS") return [];
+    const resolved = timer.resolvedCollections;
+    if (Array.isArray(resolved) && resolved.length > 0) {
+      return resolved.map((c) => ({
+        id: String(c.id),
+        label: typeof c.title === "string" && c.title.trim() ? c.title.trim() : null,
+      }));
     }
-    return timer.scopeType;
+    return (timer.collectionIds || []).map((id) => ({
+      id: String(id),
+      label: null,
+    }));
   }, [timer]);
 
   return (
@@ -138,8 +156,40 @@ export default function TimerDetailPage() {
                     Applies to
                   </Text>
                   <Text as="p" variant="bodyMd">
-                    {formatScope(timer.scopeType)} — {targetSummary}
+                    {formatScope(timer.scopeType)}
                   </Text>
+                  {productRows.length > 0 ? (
+                    <div style={{ marginTop: "8px" }}>
+                      <BlockStack gap="100">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Products
+                        </Text>
+                        <List type="bullet" gap="extraTight">
+                          {productRows.map((row) => (
+                            <List.Item key={row.id}>
+                              {row.label ?? `Product ${row.id}`}
+                            </List.Item>
+                          ))}
+                        </List>
+                      </BlockStack>
+                    </div>
+                  ) : null}
+                  {collectionRows.length > 0 ? (
+                    <div style={{ marginTop: "8px" }}>
+                      <BlockStack gap="100">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Collections
+                        </Text>
+                        <List type="bullet" gap="extraTight">
+                          {collectionRows.map((row) => (
+                            <List.Item key={row.id}>
+                              {row.label ?? `Collection ${row.id}`}
+                            </List.Item>
+                          ))}
+                        </List>
+                      </BlockStack>
+                    </div>
+                  ) : null}
                 </div>
                 {timer.timerType === "EVERGREEN" ? (
                   <div>
